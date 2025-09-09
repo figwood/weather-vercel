@@ -22,14 +22,20 @@ export async function GET(req: Request) {
   const format = url.searchParams.get('format');
   const key = `weather:hist:${city.toLowerCase()}:${units}:${year}-${String(month).padStart(2,'0')}`;
   try {
-    const raw = await kv.get<string>(key);
+    const raw = await kv.get<any>(key);
     if(!raw) {
       if(format === 'csv') {
         return new Response('day,max,min\n', { status: 200, headers: { 'Content-Type': 'text/csv; charset=utf-8' } });
       }
       return NextResponse.json({ city, units, year, month, days: {} }, { status: 200 });
     }
-    const parsed = JSON.parse(raw);
+    let parsed: any = raw;
+    if (typeof raw === 'string') {
+      try { parsed = JSON.parse(raw); } catch (parseErr) {
+        console.warn('[history] JSON parse failed, returning fallback', parseErr);
+        return NextResponse.json({ city, units, year, month, days: {} , warning: 'corrupt_record' }, { status: 200 });
+      }
+    }
     if(format === 'csv') {
       const days = parsed.days || {};
       const lines = ['day,max,min'];
@@ -42,7 +48,9 @@ export async function GET(req: Request) {
     }
     return NextResponse.json(parsed, { status: 200 });
   } catch (e:any) {
-    return NextResponse.json({ error: 'Failed to load history', message: e?.message }, { status: 500 });
+    console.warn('[history] GET failure', e);
+    // Graceful fallback to empty structure instead of 500
+    return NextResponse.json({ city, units, year, month, days: {}, error: 'history_load_failed', message: e?.message }, { status: 200 });
   }
 }
 
@@ -62,12 +70,16 @@ export async function POST(req: Request) {
   const month = now.getMonth() + 1;
   const key = `weather:hist:${city.toLowerCase()}:${units}:${year}-${String(month).padStart(2,'0')}`;
   try {
-    const raw = await kv.get<string>(key);
-    let doc: any = raw ? JSON.parse(raw) : { meta: { city, units, year, month }, days: {} };
+    const raw = await kv.get<any>(key);
+    let doc: any = raw ? (typeof raw === 'string' ? (() => { try { return JSON.parse(raw); } catch { return { meta: { city, units, year, month }, days: {} }; } })() : raw) : { meta: { city, units, year, month }, days: {} };
+    if (!doc.meta) doc.meta = { city, units, year, month };
+    if (!doc.days || typeof doc.days !== 'object') doc.days = {};
     doc.days[body.day] = { max: body.max, min: body.min, ts: new Date().toISOString() };
     await kv.set(key, JSON.stringify(doc));
     return NextResponse.json({ ok: true, saved: doc.days[body.day] }, { status: 200 });
   } catch (e:any) {
-    return NextResponse.json({ error: 'Failed to save history', message: e?.message }, { status: 500 });
+    console.warn('[history] POST failure', e);
+    // Do not hard fail; return degraded response
+    return NextResponse.json({ ok: false, error: 'history_save_failed', message: e?.message }, { status: 200 });
   }
 }

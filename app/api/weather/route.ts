@@ -44,12 +44,18 @@ export async function GET(request: Request) {
     const cacheKey = `weather:${city.toLowerCase()}:${units}:v1`; // versioned for future schema changes
     if (!forceRefresh) {
       try {
-        const cached = await kv.get<string>(cacheKey);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          const oneHour = 60 * 60 * 1000; // soft TTL 1h
-          if (Date.now() - new Date(parsed.ts).getTime() < oneHour) {
-            return NextResponse.json(parsed, { status: 200, headers: { 'Cache-Control': 's-maxage=1800, stale-while-revalidate=600' } });
+        const cachedRaw = await kv.get<any>(cacheKey);
+        if (cachedRaw) {
+          // If value stored as string attempt JSON parse, else assume object.
+          let cached: any = cachedRaw;
+          if (typeof cachedRaw === 'string') {
+            try { cached = JSON.parse(cachedRaw); } catch (parseErr) { /* fall through */ }
+          }
+          if (cached && typeof cached === 'object' && cached.ts) {
+            const oneHour = 60 * 60 * 1000; // soft TTL 1h
+            if (Date.now() - new Date(cached.ts).getTime() < oneHour) {
+              return NextResponse.json(cached, { status: 200, headers: { 'Cache-Control': 's-maxage=1800, stale-while-revalidate=600' } });
+            }
           }
         }
       } catch (e) {

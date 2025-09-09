@@ -111,7 +111,7 @@ export default function WeatherDashboard() {
           </div>
           <div className="panel" style={{ marginTop: '2rem' }}>
             <h2>Monthly Temperatures</h2>
-            <MonthlyTempChart todaysMax={data.maxTemp} todaysMin={data.minTemp} />
+            <MonthlyTempChart todaysMax={data.maxTemp} todaysMin={data.minTemp} city={city} units={units} />
           </div>
         </>
       )}

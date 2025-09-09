@@ -10,11 +10,13 @@ ChartJS.register(...registerables);
 interface Props {
   todaysMax: number;
   todaysMin: number;
+  city: string;
+  units: 'metric' | 'imperial' | 'standard';
 }
 
 interface DayRecord { day: number; max: number; min: number; ts?: string }
 
-export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
+export default function MonthlyTempChart({ todaysMax, todaysMin, city, units }: Props) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
@@ -33,7 +35,7 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
       setLoading(true); setError(null);
       try {
         const y = year; const m = month + 1; // API expects 1-12
-        const res = await fetch(`/api/history?city=Calgary&units=metric&year=${y}&month=${m}`);
+  const res = await fetch(`/api/history?city=${encodeURIComponent(city)}&units=${units}&year=${y}&month=${m}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (aborted) return;
@@ -55,16 +57,16 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
     if (year !== currentYear || month !== currentMonth) return;
     const existing = records.find(r => r.day === currentDay);
     if (existing && existing.max === todaysMax && existing.min === todaysMin) return;
-    (async () => {
+  (async () => {
       try {
-        await fetch(`/api/history?city=Calgary&units=metric`, {
+    await fetch(`/api/history?city=${encodeURIComponent(city)}&units=${units}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ day: currentDay, max: todaysMax, min: todaysMin })
         });
       } catch {}
     })();
-  }, [year, month, records, todaysMax, todaysMin, currentYear, currentMonth, currentDay]);
+  }, [year, month, records, todaysMax, todaysMin, currentYear, currentMonth, currentDay, city, units]);
 
   const daysInMonth = useMemo(() => new Date(year, month + 1, 0).getDate(), [year, month]);
   const labels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString());
@@ -82,7 +84,7 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
     labels,
     datasets: [
       {
-        label: 'Max (°C)',
+        label: units === 'imperial' ? 'Max (°F)' : units === 'standard' ? 'Max (K)' : 'Max (°C)',
         data: maxSeries,
         borderColor: '#ef4444',
         backgroundColor: 'rgba(239,68,68,0.2)',
@@ -90,7 +92,7 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
         tension: 0.25
       },
       {
-        label: 'Min (°C)',
+        label: units === 'imperial' ? 'Min (°F)' : units === 'standard' ? 'Min (K)' : 'Min (°C)',
         data: minSeries,
         borderColor: '#3b82f6',
         backgroundColor: 'rgba(59,130,246,0.2)',
@@ -102,6 +104,7 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
 
   const options: any = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: { labels: { color: '#e2e8f0' } },
       tooltip: { intersect: false, mode: 'index' }
@@ -111,6 +114,8 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
       y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
     }
   };
+
+  const hasData = maxSeries.some(v => v !== null) || minSeries.some(v => v !== null);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
@@ -129,7 +134,19 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
           {loading ? 'Loading history…' : error ? 'History load failed' : 'Persisted (KV) · auto saves today'}
         </span>
       </div>
-      <Chart type="line" data={data} options={options} />
+      <div style={{ position: 'relative', width: '100%', minHeight: 320 }}>
+        {hasData && <Chart type="line" data={data} options={options} />}
+        {!loading && !error && !hasData && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, opacity: .6 }}>
+            No data yet for this month.
+          </div>
+        )}
+        {error && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#f87171' }}>
+            Error loading history.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
