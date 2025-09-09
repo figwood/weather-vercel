@@ -12,9 +12,7 @@ interface Props {
   todaysMin: number;
 }
 
-interface DayRecord { day: number; max: number; min: number; }
-
-const storageKey = (year: number, month: number) => `monthlyTemps-${year}-${String(month+1).padStart(2,'0')}`;
+interface DayRecord { day: number; max: number; min: number; ts?: string }
 
 export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
   const now = new Date();
@@ -25,25 +23,48 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
   const [year, setYear] = useState<number>(currentYear);
   const [month, setMonth] = useState<number>(currentMonth); // 0-based
   const [records, setRecords] = useState<DayRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load records for selected year/month
+  // Load records for selected year/month (from server KV)
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const key = storageKey(year, month);
-    let data: DayRecord[] = [];
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) data = JSON.parse(raw);
-    } catch {}
-    // Write today's temps only if selecting current month/year
-    if (year === currentYear && month === currentMonth) {
-      if (!data.find(r => r.day === currentDay)) {
-        data.push({ day: currentDay, max: todaysMax, min: todaysMin });
-        try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+    let aborted = false;
+    async function load() {
+      setLoading(true); setError(null);
+      try {
+        const y = year; const m = month + 1; // API expects 1-12
+        const res = await fetch(`/api/history?city=Calgary&units=metric&year=${y}&month=${m}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (aborted) return;
+        const days = json.days || {};
+        const rows: DayRecord[] = Object.entries(days).map(([d, v]: any) => ({ day: Number(d), max: v.max, min: v.min, ts: v.ts }));
+        setRecords(rows.sort((a,b)=>a.day-b.day));
+      } catch (e:any) {
+        if (!aborted) setError(e.message || 'Failed');
+      } finally {
+        if (!aborted) setLoading(false);
       }
     }
-    setRecords(data);
-  }, [year, month, todaysMax, todaysMin, currentYear, currentMonth, currentDay]);
+    load();
+    return () => { aborted = true; };
+  }, [year, month]);
+
+  // Auto save today's record if current month/year and not existing or changed
+  useEffect(() => {
+    if (year !== currentYear || month !== currentMonth) return;
+    const existing = records.find(r => r.day === currentDay);
+    if (existing && existing.max === todaysMax && existing.min === todaysMin) return;
+    (async () => {
+      try {
+        await fetch(`/api/history?city=Calgary&units=metric`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ day: currentDay, max: todaysMax, min: todaysMin })
+        });
+      } catch {}
+    })();
+  }, [year, month, records, todaysMax, todaysMin, currentYear, currentMonth, currentDay]);
 
   const daysInMonth = useMemo(() => new Date(year, month + 1, 0).getDate(), [year, month]);
   const labels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString());
@@ -104,7 +125,9 @@ export default function MonthlyTempChart({ todaysMax, todaysMin }: Props) {
             {Array.from({ length: 12 }, (_, i) => i).map(m => <option key={m} value={m}>{m+1}</option>)}
           </select>
         </label>
-        <span className="muted" style={{ fontSize: '.65rem' }}>Local cache only · auto saves today</span>
+        <span className="muted" style={{ fontSize: '.65rem' }}>
+          {loading ? 'Loading history…' : error ? 'History load failed' : 'Persisted (KV) · auto saves today'}
+        </span>
       </div>
       <Chart type="line" data={data} options={options} />
     </div>

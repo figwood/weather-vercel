@@ -5,7 +5,7 @@
 1. 天气文字描述 (description)
 2. 当前温度 (current temp)
 3. 未来 24 小时的 3 小时间隔预报温度曲线
-4. 最高/最低温度 (max / min)
+4. 当日最高/最低温度 (max / min)，并写入 Vercel KV 构建月度历史
 5. 风向、风速 (wind direction / speed)
 6. 降雨量 (过去 1~3 小时 & 未来 3 小时间隔预报雨量)
 7. 湿度、气压
@@ -55,7 +55,18 @@ npm run dev
 3. 触发构建或重新部署
 4. 部署完成后访问生成的域名即可
 
-Next.js `app/api/weather/route.ts` 已设置合适的缓存头：`s-maxage=300, stale-while-revalidate=600`，可减少频繁请求。
+Next.js `app/api/weather/route.ts` 现在结合 **Vercel KV** 做多城市缓存：
+
+- KV key 形如：`weather:<city>:<units>:v1`
+- 软过期 1h（命中直接返回），KV 硬过期 24h
+- 支持查询参数：`city`, `units` (`metric|imperial|standard`), `refresh=58X3KMMmvnY2ZjW` 强制重新抓取并写入 KV
+
+示例：
+
+```
+/api/weather?city=Toronto&units=imperial
+/api/weather?city=Vancouver&refresh=58X3KMMmvnY2ZjW
+```
 
 ### API 返回示例
 
@@ -81,12 +92,19 @@ Next.js `app/api/weather/route.ts` 已设置合适的缓存头：`s-maxage=300, 
 - 风向通过度数转换为 16 方位字母（N, NNE, NE...）。
 - 图表多轴：温度(折线, 填充)、降雨(柱状)、风速(虚线)。
 
-### 后续可扩展
+### 已实现功能扩展
 
-- 添加缓存层 / Redis 以进一步降低 API 调用
+- Vercel KV 缓存（多城市、多单位）
+- 月度高低温历史持久化（自动每日写入 /api/history）
+	- 导出 CSV：`/api/history?city=Calgary&units=metric&year=2025&month=9&format=csv`
+- 前端可切换城市、单位，支持快速刷新
+
+### 仍可扩展方向
+
 - 夜间/白天主题切换
-- 加入 OneCall 历史数据对比
-- 增加多个城市切换 & 用户自选收藏
+- OneCall 历史/统计数据对比
+- 用户收藏城市列表持久化（KV List / Postgres / Edge Config）
+- 错误重试与速率限制保护
 
 ### License
 

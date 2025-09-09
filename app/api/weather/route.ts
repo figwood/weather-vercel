@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { kv } from '@vercel/kv';
 
 function degToCompass(num: number) {
   const val = Math.floor((num / 22.5) + 0.5);
@@ -12,22 +13,53 @@ function degToCompass(num: number) {
 // Revalidate once per day (86400 seconds) for daily data usage
 export const revalidate = 86400;
 
-export async function GET() {
+/**
+ * Weather API
+ * Query params:
+ *  - city   : string (default Calgary)
+ *  - units  : metric | imperial | standard (default metric)
+ *  - refresh: '1' to bypass KV cache and force new fetch
+ */
+export async function GET(request: Request) {
   const apiKey = process.env.OPENWEATHER_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: 'Missing OPENWEATHER_API_KEY' }, { status: 500 });
   }
 
-  const city = 'Calgary';
-  const units = 'metric';
+  const url = new URL(request.url);
+  let city = url.searchParams.get('city') || 'Calgary';
+  // Basic sanitization: keep letters, spaces, hyphen
+  city = city.trim().replace(/[^a-zA-Z\s-]/g, '').slice(0, 50) || 'Calgary';
+  let units = url.searchParams.get('units') || 'metric';
+  const allowedUnits = new Set(['metric', 'imperial', 'standard']);
+  if (!allowedUnits.has(units)) units = 'metric';
+  const REFRESH_TOKEN = '58X3KMMmvnY2ZjW';
+  const forceRefresh = url.searchParams.get('refresh') === REFRESH_TOKEN;
 
   const currentUrl = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=${units}&appid=${apiKey}`;
   const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=${units}&cnt=8&appid=${apiKey}`;
 
   try {
+    // Try KV cache first (stored JSON string) unless forced refresh
+    const cacheKey = `weather:${city.toLowerCase()}:${units}:v1`; // versioned for future schema changes
+    if (!forceRefresh) {
+      try {
+        const cached = await kv.get<string>(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          const oneHour = 60 * 60 * 1000; // soft TTL 1h
+          if (Date.now() - new Date(parsed.ts).getTime() < oneHour) {
+            return NextResponse.json(parsed, { status: 200, headers: { 'Cache-Control': 's-maxage=1800, stale-while-revalidate=600' } });
+          }
+        }
+      } catch (e) {
+        console.warn('[weather] KV read failed', e);
+      }
+    }
+
     const [currentRes, forecastRes] = await Promise.all([
-      fetch(currentUrl),
-      fetch(forecastUrl)
+      fetch(currentUrl, { next: { revalidate: 0 } }),
+      fetch(forecastUrl, { next: { revalidate: 0 } })
     ]);
 
     if (!currentRes.ok) {
@@ -44,7 +76,7 @@ export async function GET() {
 
     const currentRain = (current.rain && (current.rain['1h'] || current.rain['3h'])) || 0;
     const windDeg = current.wind?.deg ?? 0;
-    const payload = {
+  const payload = {
       location: city,
       ts: new Date().toISOString(),
       description: current.weather?.[0]?.description || 'n/a',
@@ -78,7 +110,14 @@ export async function GET() {
       })
     };
 
-  return NextResponse.json(payload, { status: 200, headers: { 'Cache-Control': 's-maxage=86400, stale-while-revalidate=3600' } });
+    // Store in KV (expire after 1 day)
+    try {
+      await kv.set(cacheKey, JSON.stringify({ ...payload, units }), { ex: 86400 });
+    } catch (e) {
+      console.warn('[weather] KV write failed', e);
+    }
+
+    return NextResponse.json({ ...payload, units }, { status: 200, headers: { 'Cache-Control': 's-maxage=86400, stale-while-revalidate=3600' } });
   } catch (err: any) {
     return NextResponse.json({ error: 'Unexpected error', message: err?.message }, { status: 500 });
   }
