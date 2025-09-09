@@ -2,17 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Chart } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Legend
-} from 'chart.js';
+import { Chart as ChartJS, registerables } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
+// Register everything to avoid missing controller errors in production (line, bar...).
+ChartJS.register(...registerables);
 
 interface Props {
   todaysMax: number;

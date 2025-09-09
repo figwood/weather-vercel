@@ -2,19 +2,10 @@
 
 import React from 'react';
 import { Chart } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Legend,
-  BarElement,
-  Filler
-} from 'chart.js';
+import { Chart as ChartJS, registerables } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, BarElement, Filler);
+// Register all built-in controllers/elements once (covers line/bar etc.).
+ChartJS.register(...registerables);
 
 export interface ForecastPoint {
   time: string;
