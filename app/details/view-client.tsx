@@ -24,7 +24,7 @@ export default function DetailedClient() {
           </div>
           <div className="panel" style={{ marginTop: '2rem' }}>
             <h2>Monthly Temperatures</h2>
-            <MonthlyTempChart todaysMax={data.maxTemp} todaysMin={data.minTemp} />
+            <MonthlyTempChart todaysMax={data.maxTemp} todaysMin={data.minTemp} city={data.location || 'Calgary'} units={(data.units || 'metric')} />
           </div>
           <div className="panel" style={{ marginTop: '2rem' }}>
             <h2>Meta</h2>

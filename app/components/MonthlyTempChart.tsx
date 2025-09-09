@@ -16,7 +16,7 @@ interface Props {
 
 interface DayRecord { day: number; max: number; min: number; ts?: string }
 
-export default function MonthlyTempChart({ todaysMax, todaysMin, city, units }: Props) {
+export default function MonthlyTempChart({ todaysMax, todaysMin, city = 'Calgary', units = 'metric' }: Props) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
