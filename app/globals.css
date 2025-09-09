@@ -1,0 +1,21 @@
+* { box-sizing: border-box; }
+html, body { padding:0; margin:0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif; background:#0f172a; color:#f1f5f9; }
+body { line-height:1.4; }
+a { color:#38bdf8; text-decoration:none; }
+main { max-width:1080px; margin:0 auto; padding:2rem 1.25rem 4rem; }
+h1 { font-size: clamp(1.8rem, 2.4vw, 2.6rem); margin:0 0 1rem; }
+h2 { margin-top:2.5rem; font-size:1.25rem; letter-spacing:.5px; text-transform:uppercase; opacity:.85; }
+.card-grid { display:grid; gap:1rem; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); margin:1.5rem 0 2.5rem; }
+.card { background:#1e293b; padding:1rem .9rem 1.1rem; border:1px solid #334155; border-radius:12px; position:relative; overflow:hidden; }
+.label { font-size:.7rem; text-transform:uppercase; letter-spacing:1px; opacity:.65; }
+.value { font-size:1.4rem; font-weight:600; margin-top:.15rem; }
+.muted { opacity:.6; font-size:.8rem; }
+.flex { display:flex; align-items:center; gap:.5rem; }
+.row { display:flex; flex-wrap:wrap; gap:.75rem; }
+.wind-arrow { display:inline-block; transform-origin:50% 50%; transition: transform .4s ease; }
+.panel { background:#1e293b; border:1px solid #334155; padding:1.25rem 1.25rem 1.6rem; border-radius:14px; }
+canvas { max-width:100%; }
+.footer { margin-top:3rem; font-size:.75rem; opacity:.55; text-align:center; }
+.error { color:#f87171; font-size:.85rem; margin-top:.75rem; }
+button.refresh { background:#0ea5e9; border:none; color:#fff; padding:.55rem .9rem; font-size:.85rem; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:.4rem; font-weight:500; }
+button.refresh:disabled { opacity:.5; cursor:progress; }
