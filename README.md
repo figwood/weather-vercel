@@ -94,17 +94,15 @@ Next.js `app/api/weather/route.ts` 现在结合 **Vercel KV** 做多城市缓存
 
 ### 已实现功能扩展
 
-- Vercel KV 缓存（多城市、多单位）
-- 月度高低温历史持久化（自动每日写入 /api/history）
 	- 导出 CSV：`/api/history?city=Calgary&units=metric&year=2025&month=9&format=csv`
-- 前端可切换城市、单位，支持快速刷新
+ - 每日 8:00 (Calgary 当地时间) 自动抓取并缓存：`/api/cron/daily`（Vercel Cron，见 vercel.json），页面加载仅读取缓存不重复抓取
 
 ### 仍可扩展方向
 
+ 	 - 可选：`CRON_SECRET` = 用于保护 `/api/cron/daily?token=...`
 - 夜间/白天主题切换
-- OneCall 历史/统计数据对比
-- 用户收藏城市列表持久化（KV List / Postgres / Edge Config）
-- 错误重试与速率限制保护
+ - 页面默认不触发远端拉取，只读 KV；由 Cron 8:00 定时写入。
+ - 支持查询参数：`city`, `units` (`metric|imperial|standard`), `refresh=58X3KMMmvnY2ZjW` 强制重新抓取并写入 KV（仅限有令牌场景使用）。
 
 ### License
 

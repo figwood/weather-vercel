@@ -3,5 +3,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
-  "ignoreCommand": "" 
+  "ignoreCommand": "",
+  "crons": [
+    { "path": "/api/cron/daily", "schedule": "0 15 * * *" }
+  ]
 }

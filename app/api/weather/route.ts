@@ -40,26 +40,26 @@ export async function GET(request: Request) {
   const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=${units}&cnt=8&appid=${apiKey}`;
 
   try {
-    // Try KV cache first (stored JSON string) unless forced refresh
+    // Always prefer KV cache. If not forced refresh, do not refetch—just return cached or a soft message.
     const cacheKey = `weather:${city.toLowerCase()}:${units}:v1`; // versioned for future schema changes
-    if (!forceRefresh) {
-      try {
-        const cachedRaw = await kv.get<any>(cacheKey);
-        if (cachedRaw) {
-          // If value stored as string attempt JSON parse, else assume object.
-          let cached: any = cachedRaw;
-          if (typeof cachedRaw === 'string') {
-            try { cached = JSON.parse(cachedRaw); } catch (parseErr) { /* fall through */ }
-          }
-          if (cached && typeof cached === 'object' && cached.ts) {
-            const oneHour = 60 * 60 * 1000; // soft TTL 1h
-            if (Date.now() - new Date(cached.ts).getTime() < oneHour) {
-              return NextResponse.json(cached, { status: 200, headers: { 'Cache-Control': 's-maxage=1800, stale-while-revalidate=600' } });
-            }
-          }
+    try {
+      const cachedRaw = await kv.get<any>(cacheKey);
+      if (cachedRaw && !forceRefresh) {
+        let cached: any = cachedRaw;
+        if (typeof cachedRaw === 'string') {
+          try { cached = JSON.parse(cachedRaw); } catch { /* ignore */ }
         }
-      } catch (e) {
-        console.warn('[weather] KV read failed', e);
+        if (cached && typeof cached === 'object') {
+          return NextResponse.json(cached, { status: 200, headers: { 'Cache-Control': 's-maxage=1800, stale-while-revalidate=600' } });
+        }
+      }
+      if (!cachedRaw && !forceRefresh && city.toLowerCase() === 'calgary') {
+        return NextResponse.json({ error: 'no_cached_data', message: 'No cached weather for Calgary yet. Cron will populate at 8am Calgary time or call with refresh token.' }, { status: 200 });
+      }
+    } catch (e) {
+      console.warn('[weather] KV read failed', e);
+      if (!forceRefresh && city.toLowerCase() === 'calgary') {
+        return NextResponse.json({ error: 'kv_unavailable', message: 'KV not available and refresh not requested.' }, { status: 200 });
       }
     }
 
